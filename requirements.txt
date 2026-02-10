@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+sqlalchemy
+pandas
+numpy
+tushare
+httpx
+akshare

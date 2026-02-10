@@ -1,14 +1,14 @@
-/* 个人炒股工作台（前端原型）
- * - 无外部依赖；示例数据用于演示交互与布局
- * - 数据持久化：localStorage
+/* 个人炒股工作台（前端）
+ * - 前端展示与交互
+ * - 真实数据通过后端 API 获取（TuShare Pro），不可用时降级到示例
  */
 
 const LS_KEYS = {
-  strategies: "sa_strategies_v1",
   watchlist: "sa_watchlist_v1",
   layoutLocked: "sa_layout_locked_v1",
-  marketSeed: "sa_market_seed_v1",
 };
+
+const API_BASE = "/api";
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
@@ -82,6 +82,23 @@ function uid(prefix = "id") {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
 }
 
+async function fetchJSON(path, { method = "GET", body } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 function seededRng(seed) {
   // xorshift32
   let x = seed >>> 0;
@@ -93,105 +110,13 @@ function seededRng(seed) {
   };
 }
 
-// ------------------ 示例数据 ------------------
-
-const SAMPLE_STOCKS = [
-  {
-    code: "600519",
-    name: "贵州茅台",
-    industry: "白酒",
-    mcapYi: 22000,
-    pe: 30.5,
-    turnPct: 0.8,
-    price: 1688.2,
-    chgPct: 1.12,
-    tech: { ma5Up: true, break20d: false, rsiRebound: false },
-    profile: { region: "贵州", concept: ["消费", "高端"] },
-  },
-  {
-    code: "300750",
-    name: "宁德时代",
-    industry: "新能源",
-    mcapYi: 7200,
-    pe: 21.8,
-    turnPct: 2.3,
-    price: 178.6,
-    chgPct: -0.85,
-    tech: { ma5Up: false, break20d: false, rsiRebound: true },
-    profile: { region: "福建", concept: ["电池", "储能"] },
-  },
-  {
-    code: "688981",
-    name: "中芯国际",
-    industry: "半导体",
-    mcapYi: 5400,
-    pe: 42.2,
-    turnPct: 3.8,
-    price: 48.32,
-    chgPct: 3.26,
-    tech: { ma5Up: true, break20d: true, rsiRebound: false },
-    profile: { region: "上海", concept: ["芯片", "国产替代"] },
-  },
-  {
-    code: "002230",
-    name: "科大讯飞",
-    industry: "AI应用",
-    mcapYi: 1600,
-    pe: 95.4,
-    turnPct: 6.1,
-    price: 46.8,
-    chgPct: 5.88,
-    tech: { ma5Up: true, break20d: true, rsiRebound: false },
-    profile: { region: "安徽", concept: ["AI", "教育"] },
-  },
-  {
-    code: "601318",
-    name: "中国平安",
-    industry: "保险",
-    mcapYi: 7400,
-    pe: 8.6,
-    turnPct: 1.4,
-    price: 41.22,
-    chgPct: 0.32,
-    tech: { ma5Up: false, break20d: false, rsiRebound: false },
-    profile: { region: "深圳", concept: ["金融", "红利"] },
-  },
-  {
-    code: "000858",
-    name: "五粮液",
-    industry: "白酒",
-    mcapYi: 5400,
-    pe: 24.2,
-    turnPct: 1.2,
-    price: 132.6,
-    chgPct: -1.42,
-    tech: { ma5Up: false, break20d: false, rsiRebound: true },
-    profile: { region: "四川", concept: ["消费"] },
-  },
-  {
-    code: "600036",
-    name: "招商银行",
-    industry: "银行",
-    mcapYi: 9000,
-    pe: 6.8,
-    turnPct: 1.1,
-    price: 33.48,
-    chgPct: 0.62,
-    tech: { ma5Up: true, break20d: false, rsiRebound: false },
-    profile: { region: "深圳", concept: ["红利", "金融"] },
-  },
-  {
-    code: "300059",
-    name: "东方财富",
-    industry: "券商科技",
-    mcapYi: 2300,
-    pe: 35.5,
-    turnPct: 4.9,
-    price: 16.92,
-    chgPct: 2.04,
-    tech: { ma5Up: true, break20d: false, rsiRebound: false },
-    profile: { region: "上海", concept: ["券商", "互联网金融"] },
-  },
+// ------------------ 降级示例数据（后端不可用时兜底） ------------------
+const FALLBACK_STOCKS = [
+  { ts_code: "600519.SH", name: "贵州茅台", industry: "白酒" },
+  { ts_code: "300750.SZ", name: "宁德时代", industry: "新能源" },
+  { ts_code: "688981.SH", name: "中芯国际", industry: "半导体" },
+  { ts_code: "002230.SZ", name: "科大讯飞", industry: "AI应用" },
+  { ts_code: "601318.SH", name: "中国平安", industry: "保险" },
 ];
 
 function makeMarketSnapshot(seed) {
@@ -243,23 +168,47 @@ function makeMarketSnapshot(seed) {
 // ------------------ 状态 ------------------
 
 const state = {
-  marketSeed: loadJson(LS_KEYS.marketSeed, 1234567),
   market: null,
   sectorView: "gainers",
-  strategies: loadJson(LS_KEYS.strategies, []),
+  strategies: [],
   watchlist: loadJson(LS_KEYS.watchlist, []),
   layoutLocked: loadJson(LS_KEYS.layoutLocked, true),
   activeStrategyId: null,
   activeStockCode: null,
   draft: null,
   cmdk: { open: false, q: "", idx: 0 },
+  stocks: [],
+  charts: { kline: null },
 };
 
 // ------------------ 大盘解读渲染 ------------------
 
-function renderMarket() {
-  state.market = makeMarketSnapshot(state.marketSeed);
-  saveJson(LS_KEYS.marketSeed, state.marketSeed);
+async function renderMarket() {
+  try {
+    const data = await fetchJSON("/market/overview");
+    state.market = {
+      indices: (data.indices || []).map((i) => ({
+        name: i.name,
+        value: i.close,
+        chgPct: (i.pct_chg ?? 0) / 100,
+      })),
+      turnoverYi: data.turnover_yi ?? null,
+      turnoverDeltaPct: null,
+      northYi: null,
+      mainForceYi: null,
+      adv: data.sentiment?.adv ?? 0,
+      decl: data.sentiment?.decl ?? 0,
+      volChangePct: data.sentiment?.volume_change_pct ?? 0,
+      upLimit: data.sentiment?.limit_up ?? 0,
+      downLimit: data.sentiment?.limit_down ?? 0,
+      sectors: (data.sectors || []).map((s) => ({ name: s.name, gainPct: s.gain_pct ?? 0, moneyYi: s.money_yi ?? 0 })),
+      volIntensity: data.vol_intensity ?? 50,
+      sentimentScore: data.sentiment?.score ?? 50,
+    };
+  } catch (e) {
+    state.market = makeMarketSnapshot(1234567);
+    toast("后端未就绪", "暂时使用示例大盘数据（请启动 FastAPI 并配置 TUSHARE_TOKEN）。");
+  }
 
   const indicesEl = document.getElementById("indices");
   indicesEl.innerHTML = state.market.indices
@@ -275,19 +224,22 @@ function renderMarket() {
     })
     .join("");
 
-  document.getElementById("turnover").textContent = `${fmtMoneyYi(state.market.turnoverYi)}`;
-  document.getElementById("turnoverDelta").textContent = `较昨日 ${fmtPct(state.market.turnoverDeltaPct, 1)}`;
-  document.getElementById("north").textContent = fmtMoneyYi(state.market.northYi);
-  document.getElementById("mainForce").textContent = `主力净额 ${fmtMoneyYi(state.market.mainForceYi)}`;
+  document.getElementById("turnover").textContent = state.market.turnoverYi == null ? "--" : `${fmtMoneyYi(state.market.turnoverYi)}`;
+  document.getElementById("turnoverDelta").textContent =
+    state.market.turnoverDeltaPct == null ? "" : `较昨日 ${fmtPct(state.market.turnoverDeltaPct, 1)}`;
+  document.getElementById("north").textContent = state.market.northYi == null ? "--" : fmtMoneyYi(state.market.northYi);
+  document.getElementById("mainForce").textContent = state.market.mainForceYi == null ? "" : `主力净额 ${fmtMoneyYi(state.market.mainForceYi)}`;
   document.getElementById("volIntensity").textContent = `${state.market.volIntensity}/100`;
 
-  document.getElementById("advDecl").textContent = `${state.market.adv} / ${state.market.decl}`;
-  document.getElementById("advDeclRatio").textContent = fmtNum(state.market.advDeclRatio, 2);
-  document.getElementById("volumeChange").textContent = fmtPct(state.market.volChangePct, 1);
-  document.getElementById("limitStats").textContent = `${state.market.upLimit} / ${state.market.downLimit}`;
+  const ratio = state.market.decl ? state.market.adv / Math.max(1, state.market.decl) : null;
+  document.getElementById("advDecl").textContent = state.market.adv && state.market.decl ? `${state.market.adv} / ${state.market.decl}` : "--";
+  document.getElementById("advDeclRatio").textContent = ratio == null ? "--" : fmtNum(ratio, 2);
+  document.getElementById("volumeChange").textContent = state.market.volChangePct ? fmtPct(state.market.volChangePct, 1) : "--";
+  document.getElementById("limitStats").textContent =
+    state.market.upLimit || state.market.downLimit ? `${state.market.upLimit} / ${state.market.downLimit}` : "--";
 
   const ring = document.getElementById("sentimentRing");
-  const score = state.market.sentimentScore;
+  const score = state.market.sentimentScore ?? 50;
   ring.style.filter = score >= 66 ? "saturate(1.15)" : score <= 38 ? "saturate(.95)" : "saturate(1)";
   document.getElementById("sentimentScore").textContent = `${score}`;
   document.getElementById("sentimentText").textContent = sentimentLabel(score);
@@ -315,7 +267,7 @@ function buildMarketNote(m) {
   return `
     <b>今日操作倾向：</b>${escapeHtml(bias)}。<br/>
     <b>风险提示：</b>${escapeHtml(vol)}。<br/>
-    <b>量能判断：</b>${escapeHtml(liquidity)}。
+    ${m.turnoverDeltaPct == null ? "" : `<b>量能判断：</b>${escapeHtml(liquidity)}。`}
   `;
 }
 
@@ -520,24 +472,42 @@ function renderStrategies() {
     .join("");
 }
 
-function saveStrategyFromDraft() {
+async function refreshStrategies() {
+  try {
+    const data = await fetchJSON("/strategies");
+    state.strategies = data.items || [];
+  } catch {
+    state.strategies = [];
+  }
+  renderStrategies();
+  renderCmdk();
+}
+
+async function saveStrategyFromDraft() {
   const d = draftFromForm();
   if (!d.name) {
     toast("缺少策略名称", "为了便于复用，请给策略起个名字（也可以很短）。");
     return;
   }
-  const s = {
-    ...d,
-    id: uid("stg"),
-    createdAt: Date.now(),
+  const payload = {
+    name: d.name,
+    dsl: {
+      version: 1,
+      universe: "A",
+      filters: { peMax: d.filters.peMax, mcapMaxYi: d.filters.mcapMaxYi, turnMinPct: d.filters.turnMinPct, tech: d.filters.tech, note: d.filters.note },
+      exits: { takeProfitPct: d.exits.takeProfitPct, stopLossPct: d.exits.stopLossPct, exitPattern: d.exits.exitPattern },
+    },
   };
-  state.strategies.unshift(s);
-  saveJson(LS_KEYS.strategies, state.strategies);
-  state.activeStrategyId = s.id;
-  toast("已保存策略", `“${s.name}” 已加入策略列表。`);
-  renderStrategies();
-  runScreen(s);
-  renderCmdk();
+  try {
+    const created = await fetchJSON("/strategies", { method: "POST", body: payload });
+    toast("已保存策略", `“${created.name}”`);
+    await refreshStrategies();
+    state.activeStrategyId = created.id;
+    renderStrategies();
+    runScreen({ id: created.id });
+  } catch (e) {
+    toast("保存失败", "请确认后端已启动且已配置 TUSHARE_TOKEN。");
+  }
 }
 
 function parseNLIntoDraft(text, draft) {
@@ -590,29 +560,45 @@ function suggestName(d) {
 }
 
 function runScreen(strategyLike) {
-  const s = strategyLike || draftFromForm();
-  const rows = SAMPLE_STOCKS.filter((stk) => matchStrategy(stk, s));
-  renderActiveFilters(s);
-  renderScreenTable(rows);
-}
-
-function matchStrategy(stk, s) {
-  const f = s.filters || {};
-  if (f.peMax != null && !(stk.pe <= f.peMax)) return false;
-  if (f.mcapMaxYi != null && !(stk.mcapYi <= f.mcapMaxYi)) return false;
-  if (f.turnMinPct != null && !(stk.turnPct >= f.turnMinPct)) return false;
-  if (f.tech) {
-    if (f.tech === "ma_up_5" && !stk.tech.ma5Up) return false;
-    if (f.tech === "break_20d" && !stk.tech.break20d) return false;
-    if (f.tech === "rsi_oversold" && !stk.tech.rsiRebound) return false;
+  if (strategyLike && strategyLike.id) {
+    runScreenById(strategyLike.id);
+    return;
   }
-  return true;
+  runDraftScreen();
 }
 
-function renderActiveFilters(s) {
+async function runScreenById(id) {
+  try {
+    const data = await fetchJSON(`/strategies/${encodeURIComponent(id)}/run`, { method: "POST" });
+    const res = data.result;
+    renderActiveFiltersFromDraft(draftFromForm());
+    renderScreenTableFromAPI(res.items || []);
+  } catch {
+    toast("运行失败", "请确认后端已启动且 TuShare token 可用。");
+  }
+}
+
+async function runDraftScreen() {
+  const d = draftFromForm();
+  renderActiveFiltersFromDraft(d);
+  try {
+    const payload = {
+      version: 1,
+      universe: "A",
+      filters: { peMax: d.filters.peMax, mcapMaxYi: d.filters.mcapMaxYi, turnMinPct: d.filters.turnMinPct, tech: d.filters.tech, note: d.filters.note },
+      exits: { takeProfitPct: d.exits.takeProfitPct, stopLossPct: d.exits.stopLossPct, exitPattern: d.exits.exitPattern },
+    };
+    const data = await fetchJSON("/strategies/run_draft", { method: "POST", body: payload });
+    renderScreenTableFromAPI(data.result.items || []);
+  } catch {
+    renderScreenTableFromAPI([]);
+  }
+}
+
+function renderActiveFiltersFromDraft(d) {
   const host = document.getElementById("activeFilters");
-  const f = s.filters || {};
-  const e = s.exits || {};
+  const f = d.filters || {};
+  const e = d.exits || {};
   const chips = [];
   if (f.peMax != null) chips.push({ k: "PE", v: `≤${f.peMax}` });
   if (f.mcapMaxYi != null) chips.push({ k: "市值", v: `≤${f.mcapMaxYi}亿` });
@@ -628,7 +614,7 @@ function renderActiveFilters(s) {
   host.innerHTML = chips.map((c) => `<span class="chip"><b>${escapeHtml(c.k)}</b>${escapeHtml(c.v)}</span>`).join("");
 }
 
-function renderScreenTable(rows) {
+function renderScreenTableFromAPI(rows) {
   const host = document.getElementById("screenTable");
   if (!rows.length) {
     host.innerHTML = `<div class="empty" style="padding:14px;">没有符合条件的样本股票。你可以放宽条件或留空某些条件。</div>`;
@@ -652,19 +638,20 @@ function renderScreenTable(rows) {
       <tbody>
         ${rows
           .map((r) => {
-            const cls = r.chgPct > 0.01 ? "pos" : r.chgPct < -0.01 ? "neg" : "neu";
+            const pct = Number(r.pct_chg ?? r.pct_change ?? 0);
+            const cls = pct > 0.01 ? "pos" : pct < -0.01 ? "neg" : "neu";
             return `
               <tr>
-                <td>${escapeHtml(r.code)}</td>
-                <td style="font-family:var(--sans);font-weight:900;">${escapeHtml(r.name)}</td>
-                <td style="font-family:var(--sans);">${escapeHtml(r.industry)}</td>
-                <td>${fmtNum(r.price, 2)}</td>
-                <td class="${cls}">${fmtPct(r.chgPct, 2)}</td>
-                <td>${fmtNum(r.pe, 1)}</td>
-                <td>${fmtNum(r.mcapYi, 0)}</td>
-                <td>${fmtNum(r.turnPct, 1)}</td>
+                <td>${escapeHtml(r.ts_code || "")}</td>
+                <td style="font-family:var(--sans);font-weight:900;">${escapeHtml(r.name || "")}</td>
+                <td style="font-family:var(--sans);">${escapeHtml(r.industry || "")}</td>
+                <td>${r.close != null ? fmtNum(Number(r.close), 2) : "--"}</td>
+                <td class="${cls}">${r.pct_chg != null ? fmtPct(Number(r.pct_chg), 2) : "--"}</td>
+                <td>${r.pe != null ? fmtNum(Number(r.pe), 1) : "--"}</td>
+                <td>${r.mcap_yi != null ? fmtNum(Number(r.mcap_yi), 0) : "--"}</td>
+                <td>${r.turnover_rate != null ? fmtNum(Number(r.turnover_rate), 1) : "--"}</td>
                 <td style="font-family:var(--sans);">
-                  <button class="btn btn--ghost" data-open-stock="${escapeHtml(r.code)}">查看个股</button>
+                  <button class="btn btn--ghost" data-open-stock="${escapeHtml(r.ts_code)}">查看个股</button>
                 </td>
               </tr>
             `;
@@ -678,46 +665,47 @@ function renderScreenTable(rows) {
 // ------------------ 股票管理 ------------------
 
 function allStocks() {
-  // 真实项目这里是：行情接口/自选/最近访问/全市场搜索
-  const base = [...SAMPLE_STOCKS];
+  const base = [...(state.stocks.length ? state.stocks : FALLBACK_STOCKS)];
   const inWatch = new Set(state.watchlist);
-  // watchlist 优先置顶
-  base.sort((a, b) => Number(inWatch.has(b.code)) - Number(inWatch.has(a.code)));
+  base.sort((a, b) => Number(inWatch.has(b.ts_code)) - Number(inWatch.has(a.ts_code)));
   return base;
 }
 
-function renderStockList() {
+async function renderStockList() {
   const q = (document.getElementById("stockSearch").value || "").trim().toLowerCase();
   const list = document.getElementById("stockList");
   const watch = new Set(state.watchlist);
-  const rows = allStocks().filter((s) => {
-    if (!q) return true;
-    const blob = `${s.code} ${s.name} ${s.industry} ${(s.profile?.concept || []).join(" ")}`.toLowerCase();
-    return blob.includes(q);
-  });
+  if (q) {
+    try {
+      const data = await fetchJSON(`/stocks/search?q=${encodeURIComponent(q)}`);
+      state.stocks = data.items || [];
+    } catch {
+      // ignore
+    }
+  } else if (!state.stocks.length) {
+    // initial hint list
+    state.stocks = FALLBACK_STOCKS;
+  }
+  const rows = allStocks();
   if (!rows.length) {
     list.innerHTML = `<div class="empty">没有匹配结果。试试输入“行业/概念/代码前缀”。</div>`;
     return;
   }
   list.innerHTML = rows
     .map((s) => {
-      const active = s.code === state.activeStockCode ? "is-active" : "";
-      const cls = s.chgPct > 0.01 ? "pos" : s.chgPct < -0.01 ? "neg" : "neu";
-      const inW = watch.has(s.code);
+      const active = s.ts_code === state.activeStockCode ? "is-active" : "";
+      const cls = "neu";
+      const inW = watch.has(s.ts_code);
       return `
-        <div class="item ${active}" data-stock-code="${escapeHtml(s.code)}">
+        <div class="item ${active}" data-stock-code="${escapeHtml(s.ts_code)}">
           <div class="item__top">
-            <div class="item__title"><span class="code">${escapeHtml(s.code)}</span> ${escapeHtml(s.name)}</div>
+            <div class="item__title"><span class="code">${escapeHtml(s.ts_code)}</span> ${escapeHtml(s.name || "")}</div>
             <div class="item__meta">
-              <span class="tag ${cls}">${fmtPct(s.chgPct, 2)}</span>
-              <span class="tag">${escapeHtml(s.industry)}</span>
+              <span class="tag">${escapeHtml(s.industry || "")}</span>
               <span class="tag">${inW ? "自选✓" : "未自选"}</span>
             </div>
           </div>
-          <div class="item__sub">价格 ${fmtNum(s.price, 2)} · PE ${fmtNum(s.pe, 1)} · 市值 ${fmtNum(s.mcapYi, 0)}亿 · 换手 ${fmtNum(
-            s.turnPct,
-            1,
-          )}%</div>
+          <div class="item__sub">${escapeHtml(s.area || "")}${s.market ? ` · ${escapeHtml(s.market)}` : ""}</div>
         </div>
       `;
     })
@@ -731,20 +719,30 @@ function setActiveStock(code) {
   renderCmdk();
 }
 
-function renderStockDetail() {
+async function renderStockDetail() {
   const host = document.getElementById("stockDetail");
-  const s = SAMPLE_STOCKS.find((x) => x.code === state.activeStockCode);
-  if (!s) {
+  if (!state.activeStockCode) {
     host.classList.add("is-empty");
     host.innerHTML = `<div class="empty">先在左侧选择一只股票。</div>`;
     return;
   }
+  let s;
+  try {
+    s = await fetchJSON(`/stocks/${encodeURIComponent(state.activeStockCode)}/profile`);
+  } catch {
+    s = (state.stocks || []).find((x) => x.ts_code === state.activeStockCode) || null;
+  }
+  if (!s) {
+    host.classList.add("is-empty");
+    host.innerHTML = `<div class="empty">股票信息获取失败。</div>`;
+    return;
+  }
   host.classList.remove("is-empty");
   const watch = new Set(state.watchlist);
-  const cls = s.chgPct > 0.01 ? "pos" : s.chgPct < -0.01 ? "neg" : "neu";
-  const concepts = (s.profile?.concept || []).map((c) => `<span class="pill">${escapeHtml(c)}</span>`).join("");
+  const cls = "neu";
+  const concepts = "";
 
-  const analysis = autoAnalysisForStock(s, state.market);
+  const analysis = `- ${escapeHtml("已加载真实基础信息；解读模块后续接入真实行情/因子后增强。")}`;
   const strategies = state.strategies.slice(0, 6);
   const strategyOptions = strategies
     .map((st) => `<option value="${escapeHtml(st.id)}">${escapeHtml(st.name || "未命名策略")}</option>`)
@@ -753,19 +751,15 @@ function renderStockDetail() {
   host.innerHTML = `
     <div class="detailHeader">
       <div>
-        <div class="detailTitle">${escapeHtml(s.name)} <span class="code">${escapeHtml(s.code)}</span></div>
-        <div class="detailSub">行业：${escapeHtml(s.industry)} · 地区：${escapeHtml(s.profile?.region || "—")}</div>
+        <div class="detailTitle">${escapeHtml(s.name || "")} <span class="code">${escapeHtml(s.ts_code)}</span></div>
+        <div class="detailSub">行业：${escapeHtml(s.industry || "—")} · 地区：${escapeHtml(s.area || "—")}</div>
         <div class="pillRow">
-          <span class="pill">价格 ${fmtNum(s.price, 2)}</span>
-          <span class="pill ${cls}">涨跌 ${fmtPct(s.chgPct, 2)}</span>
-          <span class="pill">PE ${fmtNum(s.pe, 1)}</span>
-          <span class="pill">市值 ${fmtNum(s.mcapYi, 0)}亿</span>
-          <span class="pill">换手 ${fmtNum(s.turnPct, 1)}%</span>
+          <span class="pill">市场 ${escapeHtml(s.market || "—")}</span>
           ${concepts}
         </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
-        <button class="btn btn--ghost" id="btnToggleWatch">${watch.has(s.code) ? "移出自选" : "加入自选"}</button>
+        <button class="btn btn--ghost" id="btnToggleWatch">${watch.has(s.ts_code) ? "移出自选" : "加入自选"}</button>
         <button class="btn" id="btnQuickRun">运行策略回放</button>
       </div>
     </div>
@@ -773,6 +767,16 @@ function renderStockDetail() {
     <div class="analysis">
       <b>自动解读（示例规则生成）：</b><br/>
       ${analysis}
+    </div>
+
+    <div class="timeline">
+      <div class="timeline__top">
+        <div class="timeline__title">K线</div>
+        <div class="timeline__controls">
+          <span class="tag" id="klineTag">日线</span>
+        </div>
+      </div>
+      <div id="klineChart" style="height:260px;"></div>
     </div>
 
     <div class="timeline">
@@ -791,7 +795,7 @@ function renderStockDetail() {
     </div>
   `;
 
-  document.getElementById("btnToggleWatch").addEventListener("click", () => toggleWatch(s.code));
+  document.getElementById("btnToggleWatch").addEventListener("click", () => toggleWatch(s.ts_code));
   document.getElementById("btnQuickRun").addEventListener("click", () => {
     const sel = document.getElementById("selStrategyRun");
     if (!sel.value && state.activeStrategyId) sel.value = state.activeStrategyId;
@@ -806,6 +810,7 @@ function renderStockDetail() {
 
   // 默认跑一次
   runStrategyOnStock();
+  renderKlineChart(s.ts_code);
 }
 
 function toggleWatch(code) {
@@ -820,149 +825,100 @@ function toggleWatch(code) {
   renderCmdk();
 }
 
-function autoAnalysisForStock(stk, market) {
-  const bits = [];
-  if (stk.chgPct >= 3) bits.push(`涨幅偏强（${fmtPct(stk.chgPct, 2)}），注意是否来自板块共振而非单独脉冲。`);
-  if (stk.chgPct <= -2) bits.push(`回撤明显（${fmtPct(stk.chgPct, 2)}），若无基本面催化，优先看支撑与量能。`);
-  if (stk.pe <= 12) bits.push(`估值偏低（PE ${fmtNum(stk.pe, 1)}），更适合做“低估值修复+趋势确认”。`);
-  if (stk.pe >= 60) bits.push(`估值偏高（PE ${fmtNum(stk.pe, 1)}），更适合做“强趋势/题材催化”，风控更硬。`);
-  if (stk.turnPct >= 5) bits.push(`换手活跃（${fmtNum(stk.turnPct, 1)}%），更容易走出短线情绪波段。`);
-  if (stk.turnPct <= 1.2) bits.push(`换手偏低（${fmtNum(stk.turnPct, 1)}%），更像中线资金博弈，信号需更确认。`);
+async function renderKlineChart(ts_code) {
+  const el = document.getElementById("klineChart");
+  if (!el || typeof LightweightCharts === "undefined") return;
 
-  const sector = market?.sectors?.find((x) => x.name === stk.industry) || null;
-  if (market && sector) {
-    bits.push(`板块参考：${stk.industry} 涨跌 ${fmtPct(sector.gainPct, 2)}，资金 ${fmtMoneyYi(sector.moneyYi)}（示例）。`);
-  } else if (market) {
-    const hot = [...market.sectors].sort((a, b) => b.gainPct - a.gainPct)[0];
-    bits.push(`板块主线：当前领先的是 ${hot.name}（示例）。如果你做主线，优先顺着它找结构更好的标的。`);
+  // dispose old
+  el.innerHTML = "";
+  const chart = LightweightCharts.createChart(el, {
+    layout: { background: { color: "transparent" }, textColor: "rgba(15,23,42,.85)" },
+    grid: { vertLines: { color: "rgba(15,23,42,.06)" }, horzLines: { color: "rgba(15,23,42,.06)" } },
+    rightPriceScale: { borderColor: "rgba(15,23,42,.10)" },
+    timeScale: { borderColor: "rgba(15,23,42,.10)" },
+    height: 260,
+  });
+  const series = chart.addCandlestickSeries({
+    upColor: "#0f9d6a",
+    downColor: "#e11d48",
+    borderDownColor: "#e11d48",
+    borderUpColor: "#0f9d6a",
+    wickDownColor: "#e11d48",
+    wickUpColor: "#0f9d6a",
+  });
+
+  // last 180 days
+  const end = new Date();
+  const start = new Date(Date.now() - 1000 * 60 * 60 * 24 * 240);
+  const fmt = (d) => `${d.getFullYear()}${`${d.getMonth() + 1}`.padStart(2, "0")}${`${d.getDate()}`.padStart(2, "0")}`;
+
+  try {
+    const data = await fetchJSON(`/stocks/${encodeURIComponent(ts_code)}/kline?start=${fmt(start)}&end=${fmt(end)}&adj=qfq`);
+    const bars = (data.bars || []).map((b) => ({
+      time: `${b.t.slice(0, 4)}-${b.t.slice(4, 6)}-${b.t.slice(6, 8)}`,
+      open: b.o,
+      high: b.h,
+      low: b.l,
+      close: b.c,
+    }));
+    series.setData(bars);
+    chart.timeScale().fitContent();
+  } catch {
+    // ignore
   }
-
-  const tech = [];
-  if (stk.tech.ma5Up) tech.push("5日均线上行");
-  if (stk.tech.break20d) tech.push("突破20日高点");
-  if (stk.tech.rsiRebound) tech.push("RSI超卖回升");
-  if (tech.length) bits.push(`技术状态：${tech.join("、")}。`);
-  else bits.push(`技术状态：暂无明显触发（示例）。`);
-
-  if (bits.length < 3) bits.push("提示：这份解读来自规则模板；接入真实行情/财务/新闻后可更个性化。");
-  return bits.map((x) => `- ${escapeHtml(x)}`).join("<br/>");
 }
 
-function runStrategyOnStock() {
+async function runStrategyOnStock() {
   const host = document.getElementById("events");
-  const stk = SAMPLE_STOCKS.find((x) => x.code === state.activeStockCode);
-  if (!stk) return;
+  if (!state.activeStockCode) return;
   const sel = document.getElementById("selStrategyRun");
   const days = Number(document.getElementById("rngDays").value || 60);
-  const stg = state.strategies.find((x) => x.id === sel.value) || defaultStrategyDraft();
-  const events = simulateTimeline(stk, stg, days);
-  if (!events.length) {
-    host.innerHTML = `<div class="empty">这段时间没有触发事件（示例）。你可以换策略或调时间范围。</div>`;
-    return;
+
+  let dsl;
+  const picked = state.strategies.find((x) => x.id === sel.value);
+  if (picked && picked.dsl) {
+    dsl = picked.dsl;
+  } else {
+    const d = draftFromForm();
+    dsl = {
+      version: 1,
+      universe: "A",
+      filters: { peMax: d.filters.peMax, mcapMaxYi: d.filters.mcapMaxYi, turnMinPct: d.filters.turnMinPct, tech: d.filters.tech, note: d.filters.note },
+      exits: { takeProfitPct: d.exits.takeProfitPct, stopLossPct: d.exits.stopLossPct, exitPattern: d.exits.exitPattern },
+    };
   }
-  host.innerHTML = events
-    .map((e) => {
-      const dotCls = e.type === "buy" ? "dot buy" : e.type === "sell" ? "dot sell" : "dot note";
-      return `
-        <div class="event">
-          <div class="${dotCls}"></div>
-          <div class="event__body">
-            <div class="event__top">
-              <div class="event__time">${escapeHtml(e.time)}</div>
-              <div class="event__title">${escapeHtml(e.title)}</div>
-              <div class="tag">${escapeHtml(e.tag)}</div>
-            </div>
-            <div class="event__desc">${escapeHtml(e.desc)}</div>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-}
 
-function simulateTimeline(stk, stg, days) {
-  // 用确定性随机生成“回放感”，用于演示“策略→信号→动作”
-  const seed = hashCode(`${stk.code}_${stg.name || "draft"}_${days}_${state.marketSeed}`);
-  const rnd = seededRng(seed);
-  const n = clamp(Math.round(4 + rnd() * 7), 2, 12);
-  const events = [];
-
-  const shouldTrigger = matchStrategy(stk, stg);
-  const baseline = shouldTrigger ? 0.72 : 0.38;
-
-  for (let i = 0; i < n; i++) {
-    const day = clamp(Math.round(rnd() * days), 1, days);
-    const t = `${day}天前`;
-    const p = baseline + (rnd() - 0.5) * 0.45;
-    const type = p > 0.72 ? "buy" : p < 0.30 ? "sell" : "note";
-    const title =
-      type === "buy"
-        ? "出现买点（示例）"
-        : type === "sell"
-          ? "触发退出（示例）"
-          : "观察提示（示例）";
-    const tag =
-      type === "buy"
-        ? "BUY"
-        : type === "sell"
-          ? "SELL"
-          : "NOTE";
-    const reason = buildReason(stk, stg, type, rnd);
-    events.push({
-      time: t,
-      type,
-      title,
-      tag,
-      desc: reason,
-      sortKey: day,
+  try {
+    const data = await fetchJSON(`/stocks/${encodeURIComponent(state.activeStockCode)}/signals?days=${encodeURIComponent(days)}`, {
+      method: "POST",
+      body: dsl,
     });
+    const events = data.events || [];
+    if (!events.length) {
+      host.innerHTML = `<div class="empty">这段时间没有触发事件。</div>`;
+      return;
+    }
+    host.innerHTML = events
+      .map((e) => {
+        const dotCls = e.type === "buy" ? "dot buy" : e.type === "sell" ? "dot sell" : "dot note";
+        return `
+          <div class="event">
+            <div class="${dotCls}"></div>
+            <div class="event__body">
+              <div class="event__top">
+                <div class="event__time">${escapeHtml(e.date)}</div>
+                <div class="event__title">${escapeHtml(e.title)}</div>
+                <div class="tag">${escapeHtml((e.type || "").toUpperCase())}</div>
+              </div>
+              <div class="event__desc">${escapeHtml(`${e.desc || ""}${e.price != null ? ` 价:${e.price}` : ""}`)}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  } catch {
+    host.innerHTML = `<div class="empty">信号获取失败（请确认后端已启动且 TuShare token 可用）。</div>`;
   }
-
-  events.sort((a, b) => a.sortKey - b.sortKey);
-  return events.slice(0, 10);
-}
-
-function buildReason(stk, stg, type, rnd) {
-  const f = stg.filters || {};
-  const e = stg.exits || {};
-  const pieces = [];
-
-  if (type === "buy") {
-    if (f.tech) pieces.push(`技术触发：${techLabel(f.tech)}（示例匹配）。`);
-    else if (stk.tech.break20d) pieces.push("结构偏强：疑似突破后回踩承接（示例）。");
-    if (f.peMax != null) pieces.push(`估值过滤：PE ${fmtNum(stk.pe, 1)} ≤ ${f.peMax}。`);
-    if (f.mcapMaxYi != null) pieces.push(`市值过滤：${fmtNum(stk.mcapYi, 0)}亿 ≤ ${f.mcapMaxYi}亿。`);
-    if (f.turnMinPct != null) pieces.push(`活跃度：换手 ${fmtNum(stk.turnPct, 1)}% ≥ ${f.turnMinPct}%。`);
-    if (!pieces.length) pieces.push("策略较宽：以盘面确认作为入场条件（示例）。");
-    pieces.push(rnd() > 0.5 ? "建议：分批试错，止损线先设定再下单。" : "建议：等二次确认，避免追涨。");
-    return pieces.join(" ");
-  }
-
-  if (type === "sell") {
-    if (e.stopLossPct != null) pieces.push(`风控触发：止损 ${e.stopLossPct}%（示例）。`);
-    else if (e.exitPattern) pieces.push(`形态触发：${exitLabel(e.exitPattern)}（示例）。`);
-    else pieces.push("退出：情绪转弱或结构破坏（示例）。");
-    pieces.push(rnd() > 0.5 ? "建议：先减仓，再看反抽。 " : "建议：果断离场，等待下一次触发。");
-    return pieces.join(" ");
-  }
-
-  // note
-  if (state.market) {
-    const hot = [...state.market.sectors].sort((a, b) => b.gainPct - a.gainPct)[0];
-    pieces.push(`主线参考：${hot.name}（示例），关注板块共振。`);
-  }
-  pieces.push(rnd() > 0.55 ? "注意：量能不足时少做突破。 " : "注意：强势回踩更有性价比。 ");
-  if (f.tech) pieces.push(`你的策略偏向：${techLabel(f.tech)}。`);
-  return pieces.join(" ");
-}
-
-function hashCode(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
 }
 
 // ------------------ 指令面板（创新交互） ------------------
@@ -1015,13 +971,13 @@ function cmdkItems() {
   }
 
   // 快速打开某只股票
-  for (const stk of SAMPLE_STOCKS.slice(0, 8)) {
+  for (const stk of (state.stocks.length ? state.stocks : FALLBACK_STOCKS).slice(0, 8)) {
     items.push({
-      title: `打开个股：${stk.name} ${stk.code}`,
-      hint: `行业 ${stk.industry} · 价格 ${fmtNum(stk.price, 2)} · 涨跌 ${fmtPct(stk.chgPct, 2)}`,
+      title: `打开个股：${stk.name || ""} ${stk.ts_code}`,
+      hint: `行业 ${stk.industry || ""}`,
       run: () => {
         setTab("stocks");
-        setActiveStock(stk.code);
+        setActiveStock(stk.ts_code);
       },
     });
   }
@@ -1190,9 +1146,8 @@ function bindEvents(layoutCtl) {
     });
   });
   document.getElementById("btnRefreshMarket").addEventListener("click", () => {
-    state.marketSeed = Math.floor(Math.random() * 1e9);
     renderMarket();
-    toast("已刷新示例大盘", "用于演示不同盘面下的“快读提示”。");
+    toast("已刷新", "大盘数据将从后端重新拉取（或降级为示例）。");
   });
 
   // Strategy
@@ -1206,11 +1161,7 @@ function bindEvents(layoutCtl) {
     document.getElementById("nlStrategy").value = "市值小于300亿，PE小于25，换手大于2%，近5日均线向上，止损-6%，止盈12%";
   });
   document.getElementById("btnParseNL").addEventListener("click", () => {
-    const text = document.getElementById("nlStrategy").value || "";
-    const parsed = parseNLIntoDraft(text, draftFromForm());
-    applyDraftToForm(parsed);
-    toast("已解析自然语言", "已尽量宽松地映射为条件；你可以继续手动微调。");
-    runScreen(parsed);
+    parseNLAndApply();
   });
 
   // Strategy list click
@@ -1245,8 +1196,8 @@ function bindEvents(layoutCtl) {
     setActiveStock(item.getAttribute("data-stock-code"));
   });
   document.getElementById("btnAddRandom").addEventListener("click", () => {
-    const pick = SAMPLE_STOCKS[Math.floor(Math.random() * SAMPLE_STOCKS.length)];
-    toggleWatch(pick.code);
+    const pick = (state.stocks.length ? state.stocks : FALLBACK_STOCKS)[Math.floor(Math.random() * (state.stocks.length ? state.stocks : FALLBACK_STOCKS).length)];
+    toggleWatch(pick.ts_code);
   });
 
   // Layout lock
@@ -1314,31 +1265,38 @@ function bootstrap() {
   const layoutCtl = initLayoutDnD();
   bindEvents(layoutCtl);
 
-  // 初始：若无策略，放一条示例策略
-  if (!state.strategies.length) {
-    state.strategies = [
-      {
-        id: uid("stg"),
-        name: "低估值趋势（示例）",
-        createdAt: Date.now() - 1000 * 60 * 7,
-        filters: { peMax: 25, mcapMaxYi: 500, turnMinPct: 2, tech: "ma_up_5", note: "只做主线回踩" },
-        exits: { takeProfitPct: 12, stopLossPct: -6, exitPattern: "close_below_ma10" },
-        tags: ["估值", "技术", "活跃", "风控"],
-        nl: "PE小于25，市值小于500亿，换手大于2%，5日均线向上，止盈12%，止损-6%，跌破10日线退出",
-      },
-    ];
-    saveJson(LS_KEYS.strategies, state.strategies);
-  }
-
   renderMarket();
-  renderStrategies();
-  applyDraftToForm(state.strategies[0] || defaultStrategyDraft());
-  runScreen(state.strategies[0] || defaultStrategyDraft());
+  refreshStrategies().then(() => {
+    applyDraftToForm(defaultStrategyDraft());
+    runDraftScreen();
+  });
   renderStockList();
-
-  // 默认选中第一只股票
-  setActiveStock(SAMPLE_STOCKS[0].code);
 }
 
 bootstrap();
 
+async function parseNLAndApply() {
+  const text = document.getElementById("nlStrategy").value || "";
+  if (!text.trim()) return;
+  try {
+    const data = await fetchJSON("/strategies/parse_nl", { method: "POST", body: { text } });
+    const dsl = data.dsl;
+    const d = defaultStrategyDraft();
+    d.filters.peMax = dsl.filters?.peMax ?? null;
+    d.filters.mcapMaxYi = dsl.filters?.mcapMaxYi ?? null;
+    d.filters.turnMinPct = dsl.filters?.turnMinPct ?? null;
+    d.filters.tech = dsl.filters?.tech ?? "";
+    d.filters.note = dsl.filters?.note ?? "";
+    d.exits.takeProfitPct = dsl.exits?.takeProfitPct ?? null;
+    d.exits.stopLossPct = dsl.exits?.stopLossPct ?? null;
+    d.exits.exitPattern = dsl.exits?.exitPattern ?? "";
+    if (!document.getElementById("fName").value.trim()) d.name = "新策略";
+    applyDraftToForm(d);
+    toast("已解析自然语言", "已映射为条件，可继续微调。");
+    runDraftScreen();
+  } catch {
+    const parsed = parseNLIntoDraft(text, draftFromForm());
+    applyDraftToForm(parsed);
+    runDraftScreen();
+  }
+}

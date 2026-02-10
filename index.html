@@ -14,7 +14,6 @@
           <div class="brand__mark" aria-hidden="true">W</div>
           <div class="brand__meta">
             <div class="brand__title">个人炒股工作台</div>
-            <div class="brand__subtitle">围绕你的操作习惯：解读 → 策略 → 执行</div>
           </div>
         </div>
 
@@ -43,7 +42,6 @@
             <section class="card" data-card="indices">
               <header class="card__header">
                 <div class="card__title">当日大盘指挥台</div>
-                <div class="card__hint">把关键信息压成“可扫读”面板</div>
               </header>
               <div class="card__body">
                 <div class="indices" id="indices"></div>
@@ -54,14 +52,13 @@
                     <div class="miniStat__sub" id="turnoverDelta">--</div>
                   </div>
                   <div class="miniStat">
-                    <div class="miniStat__label">北向/主力（示例）</div>
+                    <div class="miniStat__label">北向/主力</div>
                     <div class="miniStat__value" id="north">--</div>
                     <div class="miniStat__sub" id="mainForce">--</div>
                   </div>
                   <div class="miniStat">
                     <div class="miniStat__label">波动强度</div>
                     <div class="miniStat__value" id="volIntensity">--</div>
-                    <div class="miniStat__sub">用来决定今天“激进/保守”</div>
                   </div>
                 </div>
               </div>
@@ -69,8 +66,7 @@
 
             <section class="card" data-card="sentiment">
               <header class="card__header">
-                <div class="card__title">市场情绪仪表盘</div>
-                <div class="card__hint">涨跌家数比 + 量能变化 → 一眼判断情绪段位</div>
+                <div class="card__title">市场情绪</div>
               </header>
               <div class="card__body">
                 <div class="sentiment">
@@ -107,8 +103,7 @@
 
             <section class="card" data-card="sectors">
               <header class="card__header">
-                <div class="card__title">热门板块动向</div>
-                <div class="card__hint">涨幅榜 + 资金流向：用“热度条”而不是传统表格堆叠</div>
+                <div class="card__title">热门板块</div>
               </header>
               <div class="card__body">
                 <div class="toolbar">
@@ -126,8 +121,7 @@
 
             <section class="card" data-card="pulse">
               <header class="card__header">
-                <div class="card__title">盘面脉冲（快读）</div>
-                <div class="card__hint">把“今天要不要出手”变成 3 条可执行提示</div>
+                <div class="card__title">盘面脉冲</div>
               </header>
               <div class="card__body">
                 <ol class="pulse" id="pulse"></ol>
@@ -141,7 +135,6 @@
             <section class="card">
               <header class="card__header">
                 <div class="card__title">策略列表</div>
-                <div class="card__hint">把策略当“可复用的筛选器 + 出场规则”</div>
               </header>
               <div class="card__body">
                 <div class="toolbar">
@@ -154,14 +147,13 @@
 
             <section class="card">
               <header class="card__header">
-                <div class="card__title">策略工坊（条件搭建 + 自然语言）</div>
-                <div class="card__hint">允许缺省：你只写你在意的，其它交给默认/留空</div>
+                <div class="card__title">策略工坊</div>
               </header>
               <div class="card__body">
                 <div class="workshop">
                   <div class="workshop__row">
                     <label class="field">
-                      <div class="field__label">自然语言创建（示例：市值小于300亿，PE小于25，近5日均线向上，止损-6%）</div>
+                      <div class="field__label">自然语言</div>
                       <textarea class="textarea" id="nlStrategy" rows="3" placeholder="输入一句话，生成策略草稿"></textarea>
                       <div class="field__actions">
                         <button class="btn btn--ghost" id="btnParseNL">解析成条件</button>
@@ -241,9 +233,6 @@
 
                   <div class="panel">
                     <div class="panel__title">实时筛选（示例数据）</div>
-                    <div class="panel__hint">
-                      这里用内置样本股票模拟“实时筛选”，后续接入行情/财务接口即可替换数据源。
-                    </div>
                     <div class="toolbar">
                       <div class="chipRow" id="activeFilters"></div>
                       <div class="toolbar__right">
@@ -262,8 +251,7 @@
           <div class="split">
             <section class="card">
               <header class="card__header">
-                <div class="card__title">股票列表（自选 + 搜索）</div>
-                <div class="card__hint">把“找股票”做成像搜索引擎一样快</div>
+                <div class="card__title">股票列表</div>
               </header>
               <div class="card__body">
                 <div class="toolbar">
@@ -276,13 +264,12 @@
 
             <section class="card">
               <header class="card__header">
-                <div class="card__title">个股详情（解读 + 策略运行）</div>
-                <div class="card__hint">创新交互：用“时间轴回放”看策略信号，而不是只看K线截图</div>
+                <div class="card__title">个股详情</div>
               </header>
               <div class="card__body">
                 <div id="stockDetail" class="detail is-empty">
                   <div class="empty">
-                    先在左侧选择一只股票。你会看到：实时摘要、自动解读、以及策略回放时间轴。
+                    先在左侧选择一只股票。
                   </div>
                 </div>
               </div>
@@ -302,12 +289,13 @@
           </div>
           <div class="cmdk__list" id="cmdkList"></div>
           <div class="cmdk__footer">
-            <div class="cmdk__hint">提示：Ctrl/⌘ K 打开；↑↓ 选择；Enter 执行</div>
+            <div class="cmdk__hint">Ctrl/⌘ K · ↑↓ · Enter</div>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
