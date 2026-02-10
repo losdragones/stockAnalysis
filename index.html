@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>个人炒股工作台（定制化原型）</title>
+    <meta name="color-scheme" content="dark light" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand__mark" aria-hidden="true">W</div>
+          <div class="brand__meta">
+            <div class="brand__title">个人炒股工作台</div>
+            <div class="brand__subtitle">围绕你的操作习惯：解读 → 策略 → 执行</div>
+          </div>
+        </div>
+
+        <div class="topbar__actions">
+          <button class="btn btn--ghost" id="btnCommand" title="打开指令面板（Ctrl/⌘ K）">
+            Ctrl/⌘ K
+          </button>
+          <button class="btn btn--ghost" id="btnLayout" title="拖拽布局：锁定/解锁">
+            布局：锁定
+          </button>
+          <div class="clock" id="clock">--:--</div>
+        </div>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="模块导航">
+        <button class="tab is-active" data-tab="market" role="tab" aria-selected="true">
+          大盘解读
+        </button>
+        <button class="tab" data-tab="strategy" role="tab" aria-selected="false">策略管理</button>
+        <button class="tab" data-tab="stocks" role="tab" aria-selected="false">股票管理</button>
+      </nav>
+
+      <main class="main">
+        <section id="tab-market" class="view is-active" data-view="market" role="tabpanel">
+          <div class="grid" id="marketGrid">
+            <section class="card" data-card="indices">
+              <header class="card__header">
+                <div class="card__title">当日大盘指挥台</div>
+                <div class="card__hint">把关键信息压成“可扫读”面板</div>
+              </header>
+              <div class="card__body">
+                <div class="indices" id="indices"></div>
+                <div class="miniRow">
+                  <div class="miniStat">
+                    <div class="miniStat__label">成交额</div>
+                    <div class="miniStat__value" id="turnover">--</div>
+                    <div class="miniStat__sub" id="turnoverDelta">--</div>
+                  </div>
+                  <div class="miniStat">
+                    <div class="miniStat__label">北向/主力（示例）</div>
+                    <div class="miniStat__value" id="north">--</div>
+                    <div class="miniStat__sub" id="mainForce">--</div>
+                  </div>
+                  <div class="miniStat">
+                    <div class="miniStat__label">波动强度</div>
+                    <div class="miniStat__value" id="volIntensity">--</div>
+                    <div class="miniStat__sub">用来决定今天“激进/保守”</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" data-card="sentiment">
+              <header class="card__header">
+                <div class="card__title">市场情绪仪表盘</div>
+                <div class="card__hint">涨跌家数比 + 量能变化 → 一眼判断情绪段位</div>
+              </header>
+              <div class="card__body">
+                <div class="sentiment">
+                  <div class="dial">
+                    <div class="dial__ring" id="sentimentRing" aria-hidden="true"></div>
+                    <div class="dial__center">
+                      <div class="dial__label">情绪</div>
+                      <div class="dial__value" id="sentimentScore">--</div>
+                      <div class="dial__sub" id="sentimentText">--</div>
+                    </div>
+                  </div>
+                  <div class="sentiment__stats">
+                    <div class="kv">
+                      <div class="kv__k">涨/跌家数</div>
+                      <div class="kv__v" id="advDecl">--</div>
+                    </div>
+                    <div class="kv">
+                      <div class="kv__k">涨跌家数比</div>
+                      <div class="kv__v" id="advDeclRatio">--</div>
+                    </div>
+                    <div class="kv">
+                      <div class="kv__k">量能变化</div>
+                      <div class="kv__v" id="volumeChange">--</div>
+                    </div>
+                    <div class="kv">
+                      <div class="kv__k">涨停/跌停</div>
+                      <div class="kv__v" id="limitStats">--</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="note" id="marketNote"></div>
+              </div>
+            </section>
+
+            <section class="card" data-card="sectors">
+              <header class="card__header">
+                <div class="card__title">热门板块动向</div>
+                <div class="card__hint">涨幅榜 + 资金流向：用“热度条”而不是传统表格堆叠</div>
+              </header>
+              <div class="card__body">
+                <div class="toolbar">
+                  <div class="seg" role="tablist" aria-label="板块视图切换">
+                    <button class="seg__btn is-active" data-sector-view="gainers">涨幅榜</button>
+                    <button class="seg__btn" data-sector-view="money">资金流向</button>
+                  </div>
+                  <div class="toolbar__right">
+                    <button class="btn btn--ghost" id="btnRefreshMarket">刷新示例数据</button>
+                  </div>
+                </div>
+                <div class="sectorList" id="sectorList"></div>
+              </div>
+            </section>
+
+            <section class="card" data-card="pulse">
+              <header class="card__header">
+                <div class="card__title">盘面脉冲（快读）</div>
+                <div class="card__hint">把“今天要不要出手”变成 3 条可执行提示</div>
+              </header>
+              <div class="card__body">
+                <ol class="pulse" id="pulse"></ol>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tab-strategy" class="view" data-view="strategy" role="tabpanel">
+          <div class="split">
+            <section class="card">
+              <header class="card__header">
+                <div class="card__title">策略列表</div>
+                <div class="card__hint">把策略当“可复用的筛选器 + 出场规则”</div>
+              </header>
+              <div class="card__body">
+                <div class="toolbar">
+                  <input class="input" id="strategySearch" placeholder="搜索策略（名称/标签/条件）" />
+                  <button class="btn" id="btnNewStrategy">新建策略</button>
+                </div>
+                <div class="strategyList" id="strategyList"></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <header class="card__header">
+                <div class="card__title">策略工坊（条件搭建 + 自然语言）</div>
+                <div class="card__hint">允许缺省：你只写你在意的，其它交给默认/留空</div>
+              </header>
+              <div class="card__body">
+                <div class="workshop">
+                  <div class="workshop__row">
+                    <label class="field">
+                      <div class="field__label">自然语言创建（示例：市值小于300亿，PE小于25，近5日均线向上，止损-6%）</div>
+                      <textarea class="textarea" id="nlStrategy" rows="3" placeholder="输入一句话，生成策略草稿"></textarea>
+                      <div class="field__actions">
+                        <button class="btn btn--ghost" id="btnParseNL">解析成条件</button>
+                        <button class="btn btn--ghost" id="btnExampleNL">填入示例</button>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div class="workshop__grid">
+                    <div class="panel">
+                      <div class="panel__title">选股条件（可缺省）</div>
+                      <div class="formGrid">
+                        <label class="field">
+                          <div class="field__label">市盈率 PE（上限）</div>
+                          <input class="input" id="fPeMax" type="number" placeholder="例如 30" />
+                        </label>
+                        <label class="field">
+                          <div class="field__label">市值（亿元，上限）</div>
+                          <input class="input" id="fMcapMax" type="number" placeholder="例如 500" />
+                        </label>
+                        <label class="field">
+                          <div class="field__label">换手率（% 下限）</div>
+                          <input class="input" id="fTurnMin" type="number" placeholder="例如 2" />
+                        </label>
+                        <label class="field">
+                          <div class="field__label">技术触发（可选）</div>
+                          <select class="select" id="fTech">
+                            <option value="">不设置</option>
+                            <option value="ma_up_5">近5日均线向上</option>
+                            <option value="break_20d">突破20日高点</option>
+                            <option value="rsi_oversold">RSI 超卖回升</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="panel">
+                      <div class="panel__title">卖出条件（可缺省）</div>
+                      <div class="formGrid">
+                        <label class="field">
+                          <div class="field__label">止盈（%）</div>
+                          <input class="input" id="fTakeProfit" type="number" placeholder="例如 10" />
+                        </label>
+                        <label class="field">
+                          <div class="field__label">止损（%）</div>
+                          <input class="input" id="fStopLoss" type="number" placeholder="例如 -6" />
+                        </label>
+                        <label class="field">
+                          <div class="field__label">形态退出（可选）</div>
+                          <select class="select" id="fExit">
+                            <option value="">不设置</option>
+                            <option value="close_below_ma10">收盘跌破10日线</option>
+                            <option value="bearish_engulfing">出现看跌吞没</option>
+                            <option value="volume_breakdown">放量下破支撑</option>
+                          </select>
+                        </label>
+                        <label class="field">
+                          <div class="field__label">备注（可选）</div>
+                          <input class="input" id="fNote" placeholder="例如：只做主线题材" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="workshop__row">
+                    <label class="field">
+                      <div class="field__label">策略名称</div>
+                      <input class="input" id="fName" placeholder="例如：低估值趋势跟随" />
+                    </label>
+                    <div class="workshop__actions">
+                      <button class="btn" id="btnSaveStrategy">保存策略</button>
+                      <button class="btn btn--ghost" id="btnClearDraft">清空草稿</button>
+                    </div>
+                  </div>
+
+                  <div class="divider"></div>
+
+                  <div class="panel">
+                    <div class="panel__title">实时筛选（示例数据）</div>
+                    <div class="panel__hint">
+                      这里用内置样本股票模拟“实时筛选”，后续接入行情/财务接口即可替换数据源。
+                    </div>
+                    <div class="toolbar">
+                      <div class="chipRow" id="activeFilters"></div>
+                      <div class="toolbar__right">
+                        <button class="btn btn--ghost" id="btnRunDraft">用草稿筛选</button>
+                      </div>
+                    </div>
+                    <div class="table" id="screenTable"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tab-stocks" class="view" data-view="stocks" role="tabpanel">
+          <div class="split">
+            <section class="card">
+              <header class="card__header">
+                <div class="card__title">股票列表（自选 + 搜索）</div>
+                <div class="card__hint">把“找股票”做成像搜索引擎一样快</div>
+              </header>
+              <div class="card__body">
+                <div class="toolbar">
+                  <input class="input" id="stockSearch" placeholder="搜索代码/简称/行业（例如：600、医药、AI）" />
+                  <button class="btn btn--ghost" id="btnAddRandom">加到自选（随机示例）</button>
+                </div>
+                <div class="stockList" id="stockList"></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <header class="card__header">
+                <div class="card__title">个股详情（解读 + 策略运行）</div>
+                <div class="card__hint">创新交互：用“时间轴回放”看策略信号，而不是只看K线截图</div>
+              </header>
+              <div class="card__body">
+                <div id="stockDetail" class="detail is-empty">
+                  <div class="empty">
+                    先在左侧选择一只股票。你会看到：实时摘要、自动解读、以及策略回放时间轴。
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <div class="toastHost" id="toasts" aria-live="polite" aria-relevant="additions"></div>
+
+      <div class="cmdk is-hidden" id="cmdk" role="dialog" aria-modal="true" aria-label="指令面板">
+        <div class="cmdk__backdrop" data-cmdk-close></div>
+        <div class="cmdk__panel">
+          <div class="cmdk__header">
+            <input class="cmdk__input" id="cmdkInput" placeholder="输入：/大盘、/策略、/股票、/新建策略、/运行策略…" />
+            <button class="btn btn--ghost" data-cmdk-close>Esc</button>
+          </div>
+          <div class="cmdk__list" id="cmdkList"></div>
+          <div class="cmdk__footer">
+            <div class="cmdk__hint">提示：Ctrl/⌘ K 打开；↑↓ 选择；Enter 执行</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
